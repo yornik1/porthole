@@ -1,0 +1,7 @@
+{
+  "port": 7777,
+  "refresh_seconds": 15,
+  "scan_roots": ["~/Projects", "~/Developer", "~/code", "~/src"],
+  "ignore_labels": [],
+  "forget_after_days": 30
+}

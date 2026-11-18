@@ -1,0 +1,1202 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>porthole</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><circle cx='8' cy='8' r='6' fill='%2322a06b'/></svg>">
+<style>
+:root {
+  --bg: #f6f7f9; --panel: #ffffff; --text: #1d2330; --muted: #6b7385; --line: #e3e6ec;
+  --up: #1f9d63; --down: #d83a3a; --down-bg: #fdeeee; --warn: #c27a00; --warn-bg: #fff6e0;
+  --off: #9aa1ae; --link: #2463d6; --chip: #eef1f6; --code: #f2f4f8; --accent: #2463d6;
+  --mark: #ffe58a; --hover: #f1f4f9; --sel: #e8f0ff; --hh: 120px;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14171c; --panel: #1b1f26; --text: #e4e7ec; --muted: #8b93a3; --line: #2b313b;
+    --up: #3cc887; --down: #ff6464; --down-bg: #3a1f22; --warn: #f0b03c; --warn-bg: #3a3020;
+    --off: #6b7385; --link: #73a5ff; --chip: #262c36; --code: #20252d; --accent: #73a5ff;
+    --mark: #6b5a12; --hover: #222833; --sel: #1d2a42;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text);
+  font: 14px/1.45 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif; }
+button { font: inherit; font-size: 13px; border: 1px solid var(--line); background: var(--panel); color: var(--text);
+  border-radius: 6px; padding: 3px 10px; cursor: pointer; }
+button:hover { border-color: var(--muted); }
+button.primary { background: var(--up); border-color: var(--up); color: #fff; }
+button.danger { color: var(--down); }
+button.danger:hover { border-color: var(--down); }
+button:disabled { opacity: .5; cursor: default; }
+a { color: var(--link); text-decoration: none; } a:hover { text-decoration: underline; }
+mark { background: var(--mark); color: inherit; border-radius: 2px; padding: 0 1px; }
+.mono, code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12px; }
+.sub { color: var(--muted); font-size: 12px; }
+.path { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12px; overflow-wrap: anywhere; }
+.nowrap { white-space: nowrap; }
+
+/* ---------- sticky header: meters, tabs, search, filters — always on screen */
+header { position: sticky; top: 0; z-index: 10; background: var(--bg); border-bottom: 1px solid var(--line); }
+.row { display: flex; align-items: center; gap: 8px 14px; padding: 8px 20px; flex-wrap: wrap; }
+.row + .row { padding-top: 0; }
+h1 { font-size: 17px; margin: 0; font-weight: 650; white-space: nowrap; }
+h1 small { color: var(--muted); font-weight: 400; }
+.meters { display: flex; gap: 14px; flex-wrap: wrap; cursor: pointer; }
+.meter { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); white-space: nowrap; }
+.meter b { color: var(--text); font-variant-numeric: tabular-nums; font-weight: 600; }
+.meter .mbar { width: 54px; height: 6px; border-radius: 3px; background: var(--chip); overflow: hidden; }
+.meter .mbar span { display: block; height: 100%; }
+.spacer { flex: 1; }
+.live { font-size: 12px; color: var(--muted); white-space: nowrap; }
+.live.on::before { content: "●"; color: var(--up); margin-right: 4px; }
+.live.off::before { content: "❚❚"; font-size: 9px; margin-right: 5px; vertical-align: 1px; }
+.auto { font-size: 12px; color: var(--muted); white-space: nowrap; }
+.alerts-btn { border-radius: 999px; padding: 1px 10px; font-weight: 600; white-space: nowrap; flex: none; }
+.alerts-btn.bad { background: var(--down-bg); color: var(--down); border-color: transparent; }
+.alerts-btn.warn { background: var(--warn-bg); color: var(--warn); border-color: transparent; }
+.pop { position: absolute; z-index: 20; background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+  box-shadow: 0 8px 30px rgba(0,0,0,.18); padding: 6px; min-width: 300px; max-width: 90vw; display: none; }
+.pop.show { display: block; }
+.pop .item { padding: 6px 10px; border-radius: 6px; cursor: pointer; font-size: 13px; }
+.pop .item:hover { background: var(--hover); }
+.pop .item.bad::before { content: "●"; color: var(--down); margin-right: 6px; }
+.pop .item.warn::before { content: "●"; color: var(--warn); margin-right: 6px; }
+
+.tabs { display: flex; gap: 2px; overflow-x: auto; scrollbar-width: none; }
+.tabs button { border: none; background: none; border-radius: 7px; padding: 5px 11px; color: var(--muted);
+  font-size: 14px; white-space: nowrap; }
+.tabs button:hover { background: var(--hover); color: var(--text); }
+.tabs button.on { background: var(--panel); color: var(--text); font-weight: 600; box-shadow: 0 0 0 1px var(--line); }
+.tabs .n { font-size: 11px; color: var(--muted); margin-left: 4px; font-weight: 400; }
+.tabs .n.bad { color: #fff; background: var(--down); border-radius: 999px; padding: 0 6px; }
+.tabs .n.warn { color: var(--warn); font-weight: 600; }
+.tabs kbd { display: none; }
+.search { flex: 1; min-width: 220px; max-width: 520px; position: relative; }
+.search input { width: 100%; font: inherit; font-size: 14px; padding: 5px 30px 5px 10px; border: 1px solid var(--line);
+  border-radius: 7px; background: var(--panel); color: var(--text); outline: none; }
+.search input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent); }
+.search input:focus + kbd, .search input:not(:placeholder-shown) + kbd { display: none; }
+.search kbd { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); }
+kbd { font: 11px ui-monospace, Menlo, monospace; color: var(--muted); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; background: var(--bg); }
+.toolbar { display: flex; align-items: center; gap: 8px 12px; flex-wrap: wrap; font-size: 13px; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 7px; overflow: hidden; background: var(--panel); }
+.seg button { border: none; border-radius: 0; padding: 3px 10px; color: var(--muted); }
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button.on { background: var(--sel); color: var(--text); font-weight: 600; }
+.tog { border-radius: 999px; padding: 2px 10px; color: var(--muted); }
+.tog.on { background: var(--sel); color: var(--text); border-color: var(--accent); }
+.shown { color: var(--muted); font-size: 12px; }
+.elsewhere { font-size: 12px; color: var(--muted); }
+.elsewhere button { font-size: 12px; padding: 0 8px; border-radius: 999px; margin-left: 4px; }
+#error { display: none; background: var(--down-bg); color: var(--down); padding: 8px 20px; }
+
+/* ---------- content */
+main { padding: 14px 20px 60px; max-width: 1700px; margin: 0 auto; transition: margin-right .15s; }
+.panel { display: none; }
+.panel.on { display: block; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; margin-bottom: 16px; }
+.card > h3 { font-size: 14px; margin: 0; padding: 10px 14px; border-bottom: 1px solid var(--line); font-weight: 600; }
+.card > h3 .sub { font-weight: 400; margin-left: 6px; }
+.note { margin: 0; padding: 8px 14px; color: var(--muted); font-size: 12px; border-bottom: 1px solid var(--line); }
+table { width: 100%; border-collapse: collapse; }
+th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: 12px; color: var(--muted); font-weight: 500; white-space: nowrap; background: var(--panel);
+  position: sticky; top: var(--hh); z-index: 2; }
+th[data-sort] { cursor: pointer; user-select: none; }
+th[data-sort]:hover { color: var(--text); }
+th.sorted { color: var(--text); font-weight: 600; }
+th.sorted::after { content: " ↓"; }
+th.sorted.asc::after { content: " ↑"; }
+.card table tr:first-child th:first-child { border-top-left-radius: 10px; }
+tbody tr:last-child td { border-bottom: none; }
+tbody tr.click { cursor: pointer; }
+tbody tr.click:hover td { background: var(--hover); }
+tr.sel td { background: var(--sel) !important; }
+tr.down td { background: var(--down-bg); }
+tr.warn td { background: var(--warn-bg); }
+tr.dim td { color: var(--muted); }
+tr.off td { color: var(--off); }
+.num { font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+th.num { text-align: right; }
+.name b { font-weight: 600; }
+.desc { color: var(--muted); font-size: 12px; margin-top: 1px; max-width: 640px;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+td.name { min-width: 260px; }
+.origin { color: var(--muted); font-size: 11px; margin-top: 1px; }
+.cmd { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 11px; color: var(--muted);
+  max-width: 520px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.caret { display: inline-block; width: 18px; color: var(--muted); cursor: pointer; text-align: center; border-radius: 4px; }
+.caret:hover { background: var(--chip); color: var(--text); }
+tr.child td { background: var(--bg); font-size: 13px; }
+tr.child td:first-child { padding-left: 34px; }
+td.actions { white-space: nowrap; text-align: right; width: 1%; }
+td.actions button { margin: 1px 0; }
+.membar { height: 4px; border-radius: 2px; background: var(--chip); margin-top: 3px; min-width: 60px; }
+.membar > span { display: block; height: 100%; border-radius: 2px; background: #4b7bec; }
+.grow-bad { color: var(--down); font-weight: 600; } .grow-warn { color: var(--warn); }
+.port { font-variant-numeric: tabular-nums; font-weight: 650; font-size: 14px; white-space: nowrap; }
+.ports { display: inline-flex; flex-wrap: wrap; gap: 0 6px; max-width: 170px; }
+.ports a, .ports span.p { font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; }
+.dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; vertical-align: 1px; }
+.dot.up { background: var(--up); } .dot.down { background: var(--down); }
+.dot.warn { background: var(--warn); } .dot.off, .dot.unknown { background: var(--off); }
+.status-text.down { color: var(--down); font-weight: 600; }
+.status-text.warn { color: var(--warn); font-weight: 600; }
+.badge { display: inline-block; font-size: 11px; border-radius: 4px; padding: 0 5px; margin-left: 4px;
+  background: var(--chip); color: var(--muted); white-space: nowrap; vertical-align: 1px; font-weight: 400; }
+.badge.exposed { background: var(--warn-bg); color: var(--warn); }
+.badge.http { background: transparent; border: 1px solid var(--line); }
+.badge.h-system { background: var(--chip); }
+.badge.h-server { background: color-mix(in srgb, var(--up) 15%, transparent); color: var(--up); }
+.badge.h-app { background: color-mix(in srgb, #4b7bec 15%, transparent); color: #4b7bec; }
+.badge.h-safe { background: var(--chip); color: var(--text); }
+.empty { padding: 22px 14px; color: var(--muted); text-align: center; }
+.flash td { animation: flash 1.6s ease-out; }
+@keyframes flash { from { background: var(--warn-bg); } }
+
+/* resources */
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 1px; background: var(--line); border-radius: 10px 10px 0 0; overflow: hidden; }
+.tile { background: var(--panel); padding: 12px 14px; }
+.tile .label { font-size: 12px; color: var(--muted); }
+.tile .big { font-size: 22px; font-weight: 650; font-variant-numeric: tabular-nums; margin: 2px 0 6px; }
+.tile .big small { font-size: 13px; color: var(--muted); font-weight: 400; }
+.bar { display: flex; height: 8px; border-radius: 4px; overflow: hidden; background: var(--chip); }
+.bar > span { display: block; height: 100%; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; color: var(--muted); margin-top: 6px; }
+.legend i { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 4px; vertical-align: 0; }
+.c-app { background: #4b7bec; } .c-wired { background: #e5833a; } .c-compr { background: #a55eea; }
+.c-cached { background: #9aa1ae; opacity: .55; } .c-swap { background: #d83a3a; } .c-cpu { background: #1f9d63; }
+.lvl-ok { background: var(--up); } .lvl-warn { background: var(--warn); } .lvl-bad { background: var(--down); }
+.chart-wrap { padding: 8px 14px 12px; border-top: 1px solid var(--line); }
+.chart-head { display: flex; align-items: center; gap: 12px; font-size: 12px; color: var(--muted); margin-bottom: 4px; flex-wrap: wrap; }
+svg.chart { width: 100%; height: 220px; display: block; }
+svg.chart text { fill: var(--muted); font-size: 10px; }
+svg.chart .grid { stroke: var(--line); stroke-width: 1; }
+
+/* ---------- drawer: the card of one process */
+#drawer { position: fixed; top: 0; right: 0; bottom: 0; width: 480px; max-width: 100vw; z-index: 30;
+  background: var(--panel); border-left: 1px solid var(--line); box-shadow: -10px 0 40px rgba(0,0,0,.15);
+  transform: translateX(105%); transition: transform .15s; display: flex; flex-direction: column; }
+#drawer.show { transform: none; }
+@media (min-width: 1250px) { body.drawer main { margin-right: 480px; } }
+.d-head { padding: 14px 16px 10px; border-bottom: 1px solid var(--line); display: flex; gap: 10px; align-items: flex-start; }
+.d-head > div { min-width: 0; }
+#d-subtitle { font-family: ui-monospace, Menlo, monospace; font-size: 11px; overflow-wrap: anywhere; }
+.d-body .cmd { max-width: 100% !important; white-space: normal; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.chain .step > span:last-child { min-width: 0; }
+.d-head h2 { margin: 0; font-size: 17px; font-weight: 650; overflow-wrap: anywhere; }
+.d-head .close { margin-left: auto; font-size: 16px; padding: 0 9px; }
+.d-body { overflow-y: auto; padding: 4px 16px 30px; flex: 1; }
+.d-sec { padding: 10px 0; border-bottom: 1px solid var(--line); }
+.d-sec:last-child { border-bottom: none; }
+.d-sec h4 { margin: 0 0 6px; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); font-weight: 600; }
+.d-what { font-size: 15px; font-weight: 600; margin: 2px 0 4px; }
+.d-text { font-size: 13px; line-height: 1.5; }
+.hint { font-size: 12px; border-radius: 6px; padding: 6px 9px; margin-top: 8px; }
+.hint.system { background: var(--down-bg); color: var(--down); }
+.hint.app { background: color-mix(in srgb, #4b7bec 12%, transparent); }
+.hint.server { background: color-mix(in srgb, var(--up) 12%, transparent); }
+.hint.safe { background: var(--chip); }
+.kv { display: grid; grid-template-columns: 120px 1fr; gap: 4px 10px; font-size: 13px; }
+.kv > div:nth-child(odd) { color: var(--muted); font-size: 12px; padding-top: 1px; }
+.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.stats div { background: var(--bg); border-radius: 8px; padding: 6px 8px; }
+.stats b { display: block; font-size: 15px; font-variant-numeric: tabular-nums; }
+.stats span { font-size: 11px; color: var(--muted); }
+.chain { display: flex; flex-direction: column; gap: 2px; font-size: 13px; }
+.chain .step { display: flex; gap: 6px; align-items: baseline; }
+.chain .step .arrow { color: var(--muted); width: 14px; flex: none; }
+.chain .step a { cursor: pointer; }
+.chain .step.me { font-weight: 600; }
+.cmdbox { font: 12px ui-monospace, Menlo, monospace; background: var(--code); border-radius: 6px; padding: 8px; overflow-wrap: anywhere;
+  white-space: pre-wrap; max-height: 160px; overflow-y: auto; }
+.d-actions { display: flex; gap: 6px; flex-wrap: wrap; padding: 10px 16px; border-top: 1px solid var(--line); }
+.linkbtn { border: none; background: none; color: var(--link); padding: 0; font-size: 12px; margin-left: 6px; }
+.linkbtn:hover { text-decoration: underline; }
+svg.spark { width: 100%; height: 46px; display: block; margin-top: 6px; }
+#toast { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); background: var(--text); color: var(--bg);
+  padding: 8px 14px; border-radius: 8px; font-size: 13px; display: none; max-width: 90vw; z-index: 50; white-space: pre-line; }
+
+/* narrow screens: hide secondary columns, tables scroll sideways */
+.wrap { overflow-x: visible; }
+@media (max-width: 1100px) {
+  .opt { display: none; }
+  .wrap { overflow-x: auto; }
+  th { position: static; }
+}
+.seg button, .tog { white-space: nowrap; }
+@media (max-width: 700px) {
+  .row { padding: 6px 16px; gap: 6px 10px; }
+  .row:first-child { flex-wrap: nowrap; overflow: hidden; }
+  h1 small, .live:not(.on), .auto span { display: none; }
+  .live { font-size: 0; } .live.on::before { font-size: 12px; }
+  .meters { gap: 8px; flex-wrap: nowrap; overflow: hidden; }
+  .meter { gap: 3px; }
+  .toolbar { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+  .toolbar > * { flex: none; }
+  .tabs button { padding: 5px 8px; }
+  main { padding-left: 16px; padding-right: 16px; }
+  .opt2 { display: none; }
+  .meter .mbar { width: 34px; }
+  .search { min-width: 100%; }
+  .stats { grid-template-columns: repeat(2, 1fr); }
+  .kv { grid-template-columns: 95px 1fr; }
+}
+</style>
+</head>
+<body>
+<header id="top">
+  <div class="row">
+    <h1>porthole <small id="host-port"></small></h1>
+    <div class="meters" id="meters" title="Open Resources"></div>
+    <span id="alerts-wrap"></span>
+    <div class="spacer"></div>
+    <span class="live" id="live"></span>
+    <label class="auto" title="Refresh while the tab is open and focused"><input type="checkbox" id="auto" checked><span> auto</span></label>
+    <button id="refresh" title="Refresh now (R)">⟳</button>
+  </div>
+  <div class="row">
+    <nav class="tabs" id="tabs"></nav>
+    <div class="search"><input id="q" type="search" placeholder="Search name, port, pid, project, command…" autocomplete="off" spellcheck="false"><kbd>/</kbd></div>
+  </div>
+  <div class="row toolbar" id="toolbar"></div>
+</header>
+<div class="pop" id="alerts-pop"></div>
+<div id="error"></div>
+
+<main>
+  <div class="panel" data-tab="procs">
+    <div class="card"><div class="wrap"><table>
+      <thead id="procs-head"></thead><tbody id="procs"></tbody>
+    </table></div></div>
+    <p class="sub">Memory as in Activity Monitor (footprint, including compressed and swap), top 120 processes. “Growth” is the change over the last hour: steady growth without load usually means a leak. Click a row for details: what it is, where it came from, when it was made.</p>
+  </div>
+
+  <div class="panel" data-tab="ports">
+    <div class="card"><div class="wrap"><table>
+      <thead id="ports-head"></thead><tbody id="ports"></tbody>
+    </table></div></div>
+  </div>
+
+  <div class="panel" data-tab="projects">
+    <div class="card">
+      <h3>Known projects <span class="sub">services from ~/Library/LaunchAgents and dev servers from .claude/launch.json</span></h3>
+      <div class="wrap"><table><thead id="services-head"></thead><tbody id="services"></tbody></table></div>
+    </div>
+    <div class="card" id="gone-card">
+      <h3>Started by hand, not running now <span class="sub">won't come back after a reboot</span></h3>
+      <div class="wrap"><table><thead id="gone-head"></thead><tbody id="gone"></tbody></table></div>
+    </div>
+  </div>
+
+  <div class="panel" data-tab="schedule">
+    <div class="card"><div class="wrap"><table>
+      <thead id="scheduled-head"></thead><tbody id="scheduled"></tbody>
+    </table></div>
+    <details id="hidden-wrap" style="padding:8px 14px"><summary class="sub" id="hidden-summary" style="cursor:pointer"></summary><div class="sub mono" id="hidden" style="padding-top:6px"></div></details>
+    </div>
+  </div>
+
+  <div class="panel" data-tab="resources">
+    <div class="card">
+      <div class="tiles" id="tiles"></div>
+      <div class="chart-wrap">
+        <div class="chart-head">
+          <span class="seg" id="range"><button data-range="1">1 h</button><button data-range="6">6 h</button></span>
+          <span id="chart-legend"></span>
+        </div>
+        <svg class="chart" id="chart" preserveAspectRatio="none"></svg>
+      </div>
+    </div>
+    <p class="sub">Memory by part, as in Activity Monitor. “Apps” is what programs hold; “compressed” is rarely used memory macOS has squeezed; “cache” is files released on demand. Swap is memory pushed out to disk: when it is large, switching between apps gets slow.</p>
+  </div>
+</main>
+
+<aside id="drawer" aria-hidden="true">
+  <div class="d-head"><div><h2 id="d-title"></h2><div class="sub" id="d-subtitle"></div></div><button class="close" data-close title="Close (Esc)">✕</button></div>
+  <div class="d-body" id="d-body"></div>
+  <div class="d-actions" id="d-actions"></div>
+</aside>
+<div id="toast"></div>
+
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+const GB = 1 << 30, MB = 1 << 20;
+let state = null, timer = null, busy = false, liveBusy = false, fullAt = 0, pointerDown = false;
+let drawer = null;          // {type: "proc"|"group", pid?, key?, data?, at}
+let range = Number(store("range")) || 1;
+const openGroups = new Set();
+
+// ---------------------------------------------------------------- persistent UI state
+const TABS = [
+  {id: "procs", title: "Processes"},
+  {id: "ports", title: "Ports"},
+  {id: "projects", title: "Projects"},
+  {id: "schedule", title: "Schedule"},
+  {id: "resources", title: "Resources"},
+];
+let tab = (location.hash.slice(1) && TABS.some((t) => t.id === location.hash.slice(1))) ? location.hash.slice(1) : (store("tab") || "procs");
+const FILTER_DEFAULTS = {
+  procs: {view: "groups", who: "all", grow: false, port: false},
+  ports: {who: "mine"},
+  projects: {st: "all"},
+  schedule: {st: "all"},
+};
+const SORT_DEFAULTS = {
+  procs: {key: "mem", dir: -1}, flat: {key: "mem", dir: -1}, ports: {key: "port", dir: 1},
+  services: {key: "status", dir: 1}, gone: {key: "last", dir: -1}, scheduled: {key: "status", dir: 1},
+};
+const filters = loadObj("filters", FILTER_DEFAULTS);
+if (filters.ports.who === "http") filters.ports.who = "web";
+const sorts = loadObj("sorts", SORT_DEFAULTS);
+function loadObj(key, defaults) {
+  let saved = {};
+  try { saved = JSON.parse(store(key) || "{}"); } catch (e) {}
+  const out = {};
+  for (const k in defaults) out[k] = {...defaults[k], ...(saved[k] || {})};
+  return out;
+}
+function store(key, val) { try { if (val === undefined) return localStorage.getItem(key); localStorage.setItem(key, val); } catch (e) { return null; } }
+function saveUI() { store("filters", JSON.stringify(filters)); store("sorts", JSON.stringify(sorts)); store("tab", tab); }
+
+// ---------------------------------------------------------------- helpers
+const active = () => !document.hidden && document.hasFocus();
+function setHTML(el, html) { if (el._html !== html) { el.innerHTML = html; el._html = html; } }
+async function getJSON(url) {
+  // A choking machine can stall a request: give up after 8 s instead of piling up.
+  const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 8000);
+  try {
+    const res = await fetch(url, {cache: "no-store", signal: ctl.signal});
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || res.status);
+    return data;
+  } finally { clearTimeout(t); }
+}
+function esc(v) { return String(v ?? "").replace(/[&<>"']/g, (c) => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c])); }
+function tilde(p) { return p ? String(p).replace(/^\/Users\/[^/]+/, "~") : ""; }
+function base(p) { return p ? String(p).split("/").filter(Boolean).pop() : ""; }
+function ago(sec) {
+  sec = Math.max(0, Math.round(sec));
+  if (sec < 60) return sec + " s";
+  if (sec < 3600) return Math.floor(sec / 60) + " min";
+  if (sec < 86400) return Math.floor(sec / 3600) + " h " + Math.floor(sec % 3600 / 60) + " min";
+  if (sec < 86400 * 60) return Math.floor(sec / 86400) + " d " + Math.floor(sec % 86400 / 3600) + " h";
+  return Math.floor(sec / 86400) + " d";
+}
+function when(ts) {
+  if (!ts) return "—";
+  const d = new Date(ts * 1000), now = Date.now() / 1000;
+  const sameYear = d.getFullYear() === new Date().getFullYear();
+  const date = d.toLocaleDateString(undefined, {day: "numeric", month: "short", ...(sameYear ? {} : {year: "numeric"})});
+  const time = d.toLocaleTimeString(undefined, {hour: "2-digit", minute: "2-digit"});
+  return `${date} ${time} <span class="sub">(${ago(now - ts)} ago)</span>`;
+}
+function plural(n, one, many) {
+  return n + " " + (n === 1 ? one : many);
+}
+function toast(msg, ms = 4000) {
+  const t = $("toast"); t.textContent = msg; t.style.display = "block";
+  clearTimeout(toast._t); toast._t = setTimeout(() => t.style.display = "none", ms);
+}
+function gb(b, d = 1) { return (b / GB).toFixed(d); }
+function size(b) { return b == null ? "—" : b >= GB ? gb(b) + " GB" : Math.round(b / MB) + " MB"; }
+const STATUS_TEXT = {up: "running", down: "not running", warn: "problem", off: "disabled", unknown: "?"};
+const HINT_TEXT = {system: "macOS", app: "app", server: "yours", safe: "safe to quit"};
+
+// ---------------------------------------------------------------- search
+let query = "", tokens = [];
+function setQuery(q) {
+  query = q;
+  tokens = q.toLowerCase().split(/\s+/).filter(Boolean);
+}
+function matches(hay) {
+  if (!tokens.length) return true;
+  const h = hay.toLowerCase();
+  return tokens.every((t) => h.includes(t));
+}
+function hl(text) {
+  const s = esc(text);
+  if (!tokens.length || !s) return s;
+  const parts = tokens.map((t) => esc(t).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).filter(Boolean);
+  return s.replace(new RegExp("(" + parts.join("|") + ")", "gi"), "<mark>$1</mark>");
+}
+const hayProc = (p) => [p.name, p.desc, p.pid, p.command, p.project, p.origin && p.origin.text, (p.ports || []).join(" "), p.group_name, p.user].join(" ");
+const hayGroup = (g) => [g.name, g.desc, g.project, g.origin, (g.labels || []).join(" "), (g.ports || []).join(" ")].join(" ");
+const hayPort = (r) => [r.port, r.name, r.pid, r.command, r.project, r.cwd, r.origin.text, r.url, r.http && r.http.title, r.desc].join(" ");
+const hayService = (s) => [s.name, s.label, s.project, s.reason, (s.expected_ports || []).join(" "), s.plist_file, s.command, STATUS_TEXT[s.status]].join(" ");
+const hayGone = (g) => [g.port, g.project, g.cwd, g.command, g.title, g.name].join(" ");
+const haySched = (s) => [s.label, s.schedule, s.project, s.last_exit].join(" ");
+
+// ---------------------------------------------------------------- sorting
+function cmp(a, b) {
+  if (a == null && b == null) return 0;
+  if (a == null) return 1;
+  if (b == null) return -1;
+  if (typeof a === "string" || typeof b === "string") return String(a).localeCompare(String(b), "ru", {numeric: true});
+  return a - b;
+}
+function sortBy(rows, table, getters) {
+  const s = sorts[table], g = getters[s.key] || getters[SORT_DEFAULTS[table].key];
+  return rows.sort((a, b) => {
+    const va = g(a), vb = g(b);
+    if (va == null || vb == null) return cmp(va, vb);  // empty values always last
+    return cmp(va, vb) * s.dir;
+  });
+}
+function head(table, cols) {
+  const s = sorts[table];
+  return "<tr>" + cols.map(([label, key, cls = "", title = ""]) => {
+    const on = key && s.key === key;
+    return `<th class="${cls} ${on ? "sorted" + (s.dir > 0 ? " asc" : "") : ""}"${key ? ` data-sort="${key}" data-table="${table}"` : ""}${title ? ` title="${esc(title)}"` : ""}>${label}</th>`;
+  }).join("") + "</tr>";
+}
+
+// ---------------------------------------------------------------- data accessors
+const mon = () => state && state.monitor;
+const allProcs = () => (mon() && mon().procs) || [];
+function procOf(pid) { return allProcs().find((p) => p.pid === pid); }
+function childrenOf(key) { return allProcs().filter((p) => p.group === key); }
+function portRow(port) { return state && state.ports.find((r) => r.port === port); }
+function growthRate(bytes, minutes) { return bytes == null ? null : bytes * 60 / Math.max(minutes || 0, 30); }
+
+// Ports: "mine" = servers you run (not macOS, not an app's own helper ports like
+// Claude Code sessions); "web" = answers with a real page (not 404/401/API).
+function portWho(r, who) {
+  if (who === "all") return true;
+  if (who === "web" || who === "http") return !!r.url;
+  if (who === "apps") return !r.system && r.app_internal;
+  if (who === "exposed") return r.exposed && !r.system;
+  return !r.system && !r.app_internal;  // "mine"
+}
+const HTTP_KIND = {
+  api: (h) => `API, not a page <span class="badge http">${h.status}</span>`,
+  auth: (h) => `requires auth <span class="badge http">${h.status}</span>`,
+  websocket: () => `WebSocket (dev server live reload)`,
+  nopage: (h) => `internal HTTP, no page <span class="badge http">${h.status}</span>`,
+};
+
+function whoOk(x, who) {
+  if (who === "all") return true;
+  if (who === "mine") return !x.system;
+  // Exclusive buckets: macOS / apps / your servers (projects and own programs).
+  if (who === "apps") return !x.system && (x.kind === "app" || x.hint === "app");
+  if (who === "servers") return !x.system && x.kind !== "app" && x.hint !== "app" && (x.kind === "project" || x.hint === "server");
+  if (who === "system") return !!x.system;
+  return true;
+}
+
+// Every tab's rows after search + filters; also used for "found elsewhere" counts.
+function rowsFor(id, useFilters = true) {
+  if (!state) return [];
+  const f = filters[id] || {};
+  if (id === "procs") {
+    const m = mon();
+    if (!m) return [];
+    if (f.view === "flat" || !useFilters) {
+      return allProcs().filter((p) => matches(hayProc(p)) && (!useFilters || (
+        whoOk({...p, kind: p.group.split(":")[0]}, f.who) &&
+        (!f.grow || growthRate(p.growth, 60) >= 50 * MB) &&
+        (!f.port || (p.ports || []).length))));
+    }
+    return m.groups.filter((g) => {
+      const kids = childrenOf(g.key);
+      if (!whoOk(g, f.who)) return false;
+      if (f.grow && !(growthRate(g.growth, g.growth_minutes) >= 50 * MB)) return false;
+      if (f.port && !g.ports.length) return false;
+      return matches(hayGroup(g)) || kids.some((p) => matches(hayProc(p)));
+    });
+  }
+  if (id === "ports") {
+    return state.ports.filter((r) => matches(hayPort(r)) && (!useFilters || portWho(r, f.who)));
+  }
+  if (id === "projects") {
+    const ok = (s) => !useFilters || f.st === "all" || (f.st === "bad" && (s.status === "down" || s.status === "warn")) ||
+      (f.st === "up" && s.status === "up") || (f.st === "off" && s.status === "off");
+    return [...state.services.filter((s) => matches(hayService(s)) && ok(s)),
+            ...(f.st === "all" || f.st === "bad" || !useFilters ? state.gone.filter((g) => matches(hayGone(g))) : [])];
+  }
+  if (id === "schedule") {
+    return state.scheduled.filter((s) => matches(haySched(s)) && (!useFilters || f.st === "all" ||
+      (f.st === "err" && s.last_exit) || (f.st === "run" && s.running) || (f.st === "off" && s.disabled)));
+  }
+  return [];
+}
+
+// ---------------------------------------------------------------- header: meters, alerts, tabs, toolbar
+function lvl(pct, warn, bad) { return pct >= bad ? "lvl-bad" : pct >= warn ? "lvl-warn" : "lvl-ok"; }
+function renderMeters() {
+  const m = mon();
+  if (!m) return setHTML($("meters"), "");
+  const vm = m.vm, sw = vm.swap, cpu = m.cpu.user + m.cpu.sys;
+  const memPct = vm.used / vm.total * 100, swPct = sw.total ? sw.used / sw.total * 100 : 0;
+  const meter = (label, value, pct, cls) => `<span class="meter">${label} <b>${value}</b><span class="mbar"><span class="${cls}" style="width:${Math.min(100, pct).toFixed(1)}%"></span></span></span>`;
+  const memCls = vm.pressure === "critical" ? "lvl-bad" : vm.pressure === "warn" ? "lvl-warn" : "lvl-ok";
+  setHTML($("meters"),
+    meter("RAM", `${gb(vm.used)}<span class="sub">/${gb(vm.total, 0)}</span>`, memPct, memCls) +
+    meter("swap", `${gb(sw.used)}<span class="sub">/${gb(sw.total, 0)}</span>`, swPct, lvl(swPct, 50, 80)) +
+    meter("CPU", `${Math.round(cpu)}%`, cpu, lvl(cpu, 60, 90)));
+}
+
+function renderAlerts() {
+  const alerts = (mon() && mon().alerts) || [];
+  const down = state ? state.services.filter((s) => s.status === "down").length : 0;
+  const items = [
+    ...alerts.map((a) => ({level: a.level, text: a.text, group: a.group || ""})),
+    ...(down ? [{level: "bad", text: `${plural(down, "project not running", "projects not running")}`, tab: "projects"}] : []),
+  ];
+  const bad = items.filter((i) => i.level === "bad").length;
+  setHTML($("alerts-wrap"), items.length
+    ? `<button class="alerts-btn ${bad ? "bad" : "warn"}" id="alerts-btn" title="Alerts">⚠ ${items.length}</button>` : "");
+  setHTML($("alerts-pop"), items.map((i) => `<div class="item ${i.level === "bad" ? "bad" : "warn"}" data-jump="${esc(i.group)}" data-jumptab="${esc(i.tab || "procs")}">${esc(i.text)}</div>`).join(""));
+  document.title = (bad ? `● ${bad} · ` : "") + "porthole";
+}
+
+function tabBadge(id) {
+  if (!state) return "";
+  if (id === "procs") {
+    const n = (mon() && mon().alerts.filter((a) => a.group).length) || 0;
+    return n ? `<span class="n warn">⚠ ${n}</span>` : `<span class="n">${mon() ? mon().groups.length : ""}</span>`;
+  }
+  if (id === "ports") return `<span class="n">${state.ports.filter((r) => portWho(r, "mine")).length}</span>`;
+  if (id === "projects") {
+    const down = state.services.filter((s) => s.status === "down").length;
+    return down ? `<span class="n bad">${down}</span>` : `<span class="n">${state.services.length}</span>`;
+  }
+  if (id === "schedule") {
+    const err = state.scheduled.filter((s) => s.last_exit).length;
+    return err ? `<span class="n warn">${err} ✕</span>` : `<span class="n">${state.scheduled.length}</span>`;
+  }
+  if (id === "resources" && mon()) {
+    const sw = mon().vm.swap;
+    return sw.total && sw.used / sw.total >= .8 ? `<span class="n warn">swap</span>` : "";
+  }
+  return "";
+}
+function renderTabs() {
+  setHTML($("tabs"), TABS.map((t, i) => `<button class="${t.id === tab ? "on" : ""}" data-tab="${t.id}" title="Key ${i + 1}">${t.title}${tabBadge(t.id)}</button>`).join(""));
+  for (const p of document.querySelectorAll(".panel")) p.classList.toggle("on", p.dataset.tab === tab);
+}
+
+function seg(group, key, options) {
+  const cur = filters[group][key];
+  return `<span class="seg">${options.map(([v, label, title]) => `<button class="${cur === v ? "on" : ""}" data-filter="${group}.${key}" data-value="${v}"${title ? ` title="${esc(title)}"` : ""}>${label}</button>`).join("")}</span>`;
+}
+function tog(group, key, label, title) {
+  return `<button class="tog ${filters[group][key] ? "on" : ""}" data-toggle="${group}.${key}" title="${esc(title)}">${label}</button>`;
+}
+function renderToolbar(shown, total) {
+  let html = "";
+  if (tab === "procs") {
+    html = seg("procs", "view", [["groups", "Grouped", "An app with all its processes, a project with its own"], ["flat", "All processes", "One row per process"]])
+      + seg("procs", "who", [["all", "All"], ["mine", "Mine", "Excluding macOS system processes"], ["apps", "Apps"], ["servers", "Servers and scripts", "Processes from your projects"], ["system", "macOS"]])
+      + tog("procs", "grow", "↗ growing", "Gaining more than 50 MB per hour")
+      + tog("procs", "port", "with port", "Listening on a network port");
+  } else if (tab === "ports") {
+    html = seg("ports", "who", [["mine", "My servers", "Excluding macOS and app-internal ports"], ["web", "Web page", "Serves a real page you can open"],
+      ["apps", "App helpers", "Internal ports of Claude Code, Tailscale, etc."], ["exposed", "Exposed", "Listening beyond localhost"], ["all", "All"]]);
+  } else if (tab === "projects") {
+    html = seg("projects", "st", [["all", "All"], ["bad", "Problems"], ["up", "Running"], ["off", "Disabled"]]);
+  } else if (tab === "schedule") {
+    html = seg("schedule", "st", [["all", "All"], ["err", "Failed"], ["run", "Running"], ["off", "Disabled"]]);
+  } else {
+    html = `<span class="shown" id="monitor-count"></span>`;
+  }
+  if (tab !== "resources") html += `<span class="shown">${shown === total ? plural(total, "row", "rows") : `showing ${shown} of ${total}`}</span>`;
+  if (tokens.length) {
+    const hits = TABS.filter((t) => t.id !== tab && t.id !== "resources").map((t) => [t, rowsFor(t.id, false).length]).filter(([, n]) => n);
+    if (hits.length) html += `<span class="elsewhere">${shown ? "also in" : "found in"}:${hits.map(([t, n]) => `<button data-tab="${t.id}">${t.title} ${n}</button>`).join("")}</span>`;
+  }
+  // Sorted by a column hidden on this screen width: say so, or the order looks random.
+  const sth = document.querySelector(`.panel.on th.sorted`);
+  if (sth && !sth.offsetParent) html += `<span class="shown">sorted by: ${esc(sth.textContent.replace(/[↑↓]/g, "").trim().toLowerCase())} ${sth.classList.contains("asc") ? "↑" : "↓"}</span>`;
+  const hasFilters = JSON.stringify(filters[tab] || {}) !== JSON.stringify(FILTER_DEFAULTS[tab] || {});
+  if (hasFilters || tokens.length) html += `<button class="linkbtn" data-reset>reset</button>`;
+  setHTML($("toolbar"), html);
+}
+
+function renderLive() {
+  const m = mon(), el = $("live");
+  if (!$("auto").checked) { el.className = "live off"; el.textContent = "auto-refresh off"; return; }
+  if (!active()) { el.className = "live off"; el.textContent = "paused: tab not focused"; return; }
+  el.className = "live on";
+  el.textContent = m ? `live · ${m.live_seconds} s` : "…";
+  el.title = state ? "Updated " + new Date(state.generated_at * 1000).toLocaleTimeString(undefined) + "; ports and projects every " + state.refresh_seconds + " s" : "";
+}
+
+// ---------------------------------------------------------------- cells
+function growthCell(bytes, minutes) {
+  if (bytes == null) return `<span class="sub">—</span>`;
+  const perHour = growthRate(bytes, minutes);
+  const cls = perHour >= 700 * MB ? "grow-bad" : perHour >= 200 * MB ? "grow-warn" : "sub";
+  return `<span class="${cls}" title="over ${minutes} min">${bytes >= 0 ? "+" : "−"}${size(Math.abs(bytes))}</span>`;
+}
+function portsCell(list, limit = 4) {
+  if (!list || !list.length) return `<span class="sub">—</span>`;
+  // Search hits first, then web pages, so the useful ones are not hidden behind "+N".
+  const score = (p) => (tokens.length && matches(String(p)) ? 0 : 2) - (portRow(p) && portRow(p).url ? 1 : 0);
+  const sorted = [...list].sort((a, b) => score(a) - score(b) || a - b);
+  const more = sorted.length > limit ? `<span class="sub" title="${esc(sorted.slice(limit).join(", "))}">+${sorted.length - limit}</span>` : "";
+  return `<span class="ports">` + sorted.slice(0, limit).map((p) => {
+    const r = portRow(p);
+    return r && r.url ? `<a href="${esc(r.url)}" target="_blank" rel="noopener" title="${esc((r.http && r.http.title) || r.url)}">${hl(String(p))}</a>` : `<span class="p">${hl(String(p))}</span>`;
+  }).join("") + more + `</span>`;
+}
+function hintBadge(h) { return h ? `<span class="badge h-${h}">${HINT_TEXT[h]}</span>` : ""; }
+function killBtn(p, label = "Kill") {
+  if (!p.own) return "";
+  return `<button class="danger" data-kill="${p.pid}" data-cmd="${esc(p.cmd_id || p.command)}" data-show="${esc(p.command)}" data-name="${esc(p.name)}" title="SIGTERM; Shift+click for SIGKILL">${label}</button>`;
+}
+function jobBtns(label, withStop = true) {
+  if (!label) return "";
+  return `<button data-restart="${esc(label)}" title="launchctl kickstart -k">Restart</button>`
+    + (withStop && label !== state.dashboard_label ? ` <button class="danger" data-stop="${esc(label)}" title="launchctl bootout — won't start again until you press Start">Stop</button>` : "");
+}
+const selCls = (type, id) => drawer && drawer.type === type && (drawer.pid === id || drawer.key === id) ? "sel" : "";
+
+// ---------------------------------------------------------------- tab: processes
+function renderProcs() {
+  const m = mon();
+  if (!m) { setHTML($("procs"), `<tr><td class="empty">Collecting data…</td></tr>`); return [0, 0]; }
+  const f = filters.procs;
+  const alertGroups = new Set(m.alerts.filter((a) => a.group).map((a) => a.group));
+  const rows = [];
+  let total;
+  if (f.view === "flat") {
+    total = allProcs().length;
+    const list = sortBy(rowsFor("procs"), "flat", {
+      mem: (p) => p.mem, cpu: (p) => p.cpu, growth: (p) => p.growth, name: (p) => p.name.toLowerCase(),
+      pid: (p) => p.pid, uptime: (p) => p.uptime_s, group: (p) => p.group_name.toLowerCase(),
+    });
+    setHTML($("procs-head"), head("flat", [["Process", "name"], ["pid", "pid", "num opt"], ["Memory", "mem", "num"], ["Growth/h", "growth", "num opt2"],
+      ["CPU", "cpu", "num"], ["Owner", "group", "opt"], ["Uptime", "uptime", "num opt"], ["", ""]]));
+    const max = Math.max(1, ...list.map((p) => p.mem));
+    for (const p of list) rows.push(`<tr class="click ${p.system ? "dim" : ""} ${selCls("proc", p.pid)}" data-pid="${p.pid}">
+      <td class="name"><b>${hl(p.name)}</b> ${hintBadge(p.hint)}<div class="desc">${hl(p.desc)}</div></td>
+      <td class="num opt">${hl(String(p.pid))}</td>
+      <td class="num"><b>${size(p.mem)}</b><div class="membar"><span style="width:${(p.mem / max * 100).toFixed(1)}%"></span></div></td>
+      <td class="num opt2">${growthCell(p.growth, 60)}</td>
+      <td class="num">${p.cpu.toFixed(1)}%</td>
+      <td class="opt">${hl(p.group_name)}<div class="origin">${hl(p.origin.text)}</div></td>
+      <td class="num opt">${ago(p.uptime_s)}</td>
+      <td class="actions">${killBtn(p)}</td></tr>`);
+  } else {
+    total = m.groups.length;
+    const list = sortBy(rowsFor("procs"), "procs", {
+      mem: (g) => g.mem, cpu: (g) => g.cpu, growth: (g) => growthRate(g.growth, g.growth_minutes), name: (g) => g.name.toLowerCase(),
+      count: (g) => g.count, uptime: (g) => g.uptime_s, ports: (g) => g.ports.length ? g.ports[0] : null,
+    });
+    setHTML($("procs-head"), head("procs", [["What", "name"], ["Memory", "mem", "num"], ["Growth/h", "growth", "num opt2", "Change over the last hour"],
+      ["CPU", "cpu", "num"], ["Ports", "ports", "opt"], ["Processes", "count", "num opt"], ["Uptime", "uptime", "num opt", "Oldest process in the group"], ["", ""]]));
+    const max = Math.max(1, ...list.map((g) => g.mem));
+    for (const g of list) {
+      const kids = childrenOf(g.key);
+      // While searching, open the group down to the processes that matched (unless all did).
+      let kidHits = tokens.length && kids.length > 1 ? kids.filter((p) => matches(hayProc(p))) : null;
+      if (kidHits && (!kidHits.length || kidHits.length === kids.length)) kidHits = null;
+      const open = openGroups.has(g.key) || !!kidHits;
+      const caret = g.count > 1 ? `<span class="caret" data-caret="${esc(g.key)}" title="Show processes">${open ? "▾" : "▸"}</span>` : `<span class="caret"></span>`;
+      let action = "";
+      if (g.labels.length === 1) action = jobBtns(g.labels[0]);
+      else if (g.count === 1 && kids[0] && !g.system) action = killBtn(kids[0]);
+      const sub = g.kind === "project" ? `<div class="origin path">${hl(tilde(g.project))}</div>` : "";
+      rows.push(`<tr class="click ${g.system ? "dim" : ""} ${alertGroups.has(g.key) ? "warn" : ""} ${selCls("group", g.key)} ${g.count === 1 && kids[0] ? selCls("proc", kids[0].pid) : ""}" data-group="${esc(g.key)}" id="g-${esc(g.key)}">
+        <td class="name">${caret}<b>${hl(g.name)}</b> ${hintBadge(g.hint)}<div class="desc" style="margin-left:18px">${hl(g.desc)}</div><div class="origin" style="margin-left:18px">${hl(g.labels.length ? "launchd · " + g.labels.join(", ") : g.origin)}</div>${sub ? `<div style="margin-left:18px">${sub}</div>` : ""}</td>
+        <td class="num"><b>${size(g.mem)}</b><div class="membar"><span style="width:${(g.mem / max * 100).toFixed(1)}%"></span></div></td>
+        <td class="num opt2">${growthCell(g.growth, g.growth_minutes)}</td>
+        <td class="num">${g.cpu.toFixed(1)}%</td>
+        <td class="opt">${portsCell(g.ports)}</td>
+        <td class="num opt">${g.count}</td>
+        <td class="num opt">${ago(g.uptime_s)}</td>
+        <td class="actions">${action}</td></tr>`);
+      if (!open) continue;
+      const shownKids = kidHits && !openGroups.has(g.key) ? kidHits : kids;
+      for (const p of shownKids) rows.push(`<tr class="child click ${selCls("proc", p.pid)}" data-pid="${p.pid}">
+          <td class="name">${hl(p.name)} <span class="sub">pid ${hl(String(p.pid))}</span><div class="desc">${hl(p.desc)}</div></td>
+          <td class="num">${size(p.mem)}</td><td class="num opt2">${growthCell(p.growth, g.growth_minutes)}</td>
+          <td class="num">${p.cpu.toFixed(1)}%</td><td class="opt">${portsCell(p.ports)}</td><td class="opt"></td>
+          <td class="num opt">${ago(p.uptime_s)}</td>
+          <td class="actions">${killBtn(p)}</td></tr>`);
+      if (kidHits && !openGroups.has(g.key)) rows.push(`<tr class="child"><td colspan="8" class="sub">showing matches: ${kidHits.length} of ${kids.length}</td></tr>`);
+    }
+  }
+  const html = rows.join("") || `<tr><td colspan="8" class="empty">No matches${tokens.length ? ` for “${esc(query)}”` : ""}. Try “All” or reset the filters.</td></tr>`;
+  // A rebuild under the pointer would swallow a click: wait until the button is released.
+  if (!pointerDown) setHTML($("procs"), html);
+  return [rowsFor("procs").length, total];
+}
+
+// ---------------------------------------------------------------- tab: ports
+function renderPorts() {
+  const list = sortBy(rowsFor("ports"), "ports", {
+    port: (r) => r.port, name: (r) => r.name.toLowerCase(), project: (r) => r.project ? base(r.project).toLowerCase() : null,
+    uptime: (r) => r.uptime_s, origin: (r) => r.origin.text,
+  });
+  setHTML($("ports-head"), head("ports", [["Port", "port"], ["Page", ""], ["Listener", "name"], ["Project", "project", "opt"], ["Started by", "origin", "opt"], ["Uptime", "uptime", "num opt"], ["", ""]]));
+  const rows = list.map((r) => {
+    const h = r.http, p = procOf(r.pid);
+    let page = `<span class="sub">${r.system ? "—" : "not HTTP"}</span>`;
+    if (h && !r.url) page = `<span class="sub">${(HTTP_KIND[h.kind] || HTTP_KIND.nopage)(h)}</span>`;
+    else if (h) {
+      const title = h.title || (h.location ? "→ " + h.location : "");
+      page = `<a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.url.replace(/^http:\/\//, "").replace(/\/$/, ""))}</a> <span class="badge http">${h.status}</span>` + (title ? `<div class="desc">${hl(title)}</div>` : "");
+    }
+    const exposed = r.exposed ? `<span class="badge exposed" title="Listening beyond localhost: ${esc(r.addrs.join(", "))}">exposed</span>` : "";
+    return `<tr class="click ${r.system ? "dim" : ""} ${selCls("proc", r.pid)}" data-pid="${r.pid}">
+      <td><span class="port">${hl(String(r.port))}</span>${exposed}</td>
+      <td>${page}</td>
+      <td class="name"><b>${hl(r.name)}</b> <span class="sub">pid ${hl(String(r.pid))}</span><div class="desc">${hl(r.desc || (p ? p.desc : ""))}</div></td>
+      <td class="opt">${r.project ? `<b>${hl(base(r.project))}</b><div class="origin path">${hl(tilde(r.project))}</div>` : `<span class="sub path">${hl(tilde(r.cwd && r.cwd !== "/" ? r.cwd : "")) || "—"}</span>`}</td>
+      <td class="opt">${hl(r.origin.text)}</td>
+      <td class="num opt">${ago(r.uptime_s)}</td>
+      <td class="actions">${r.system || r.app_internal ? "" : killBtn(r)}</td></tr>`;
+  });
+  setHTML($("ports"), rows.join("") || `<tr><td colspan="7" class="empty">No matches${tokens.length ? ` for “${esc(query)}”` : ""}</td></tr>`);
+  return [list.length, state.ports.length];
+}
+
+// ---------------------------------------------------------------- tab: projects
+function renderProjects() {
+  const rows = rowsFor("projects");
+  const services = sortBy(rows.filter((r) => r.status), "services", {
+    status: (s) => ({down: 0, warn: 1, unknown: 2, up: 3, off: 4})[s.status], name: (s) => s.name.toLowerCase(),
+    project: (s) => s.project ? base(s.project).toLowerCase() : null, source: (s) => s.source,
+  });
+  const gone = sortBy(rows.filter((r) => !r.status), "gone", {last: (g) => g.last_seen, port: (g) => g.port, project: (g) => base(g.project || g.cwd || "").toLowerCase()});
+  setHTML($("services-head"), head("services", [["Status", "status"], ["Project", "name"], ["Port", ""], ["Source", "source", "opt"], ["Issue", "", "opt2"], ["", ""]]));
+  setHTML($("services"), services.map((s) => {
+    const src = s.source === "launchd" ? `launchd<div class="origin mono">${hl(s.plist_file)}</div>` : `launch.json<div class="origin mono">${hl(s.command)}</div>`;
+    const lj = s.launch_json && s.launch_json.length ? `<span class="badge">launch.json: ${esc(s.launch_json.join(", "))}</span>` : "";
+    let action = "";
+    if (s.action === "start") action = `<button class="primary" data-start="${esc(s.label)}">Start</button>`;
+    else if (s.source === "launchd" && s.pid) action = jobBtns(s.label);
+    else if (s.source === "launch.json" && s.status === "down" && s.command) action = `<button data-copy="${esc(`cd ${s.cwd} && ${s.command}`)}" title="Copy start command">Command</button>`;
+    const name = s.source === "launchd" ? `<span class="mono">${hl(s.name)}</span>` : hl(s.name);
+    const pid = s.pid || (s.ports_now && s.ports_now.length && portRow(s.ports_now[0]) ? portRow(s.ports_now[0]).pid : null);
+    return `<tr class="${s.status} ${pid ? "click" : ""} ${pid ? selCls("proc", pid) : ""}" ${pid ? `data-pid="${pid}"` : ""}>
+      <td class="nowrap"><span class="dot ${s.status}"></span><span class="status-text ${s.status}">${STATUS_TEXT[s.status]}</span></td>
+      <td class="name">${name}${lj}<div class="origin path">${hl(tilde(s.project) || "")}</div></td>
+      <td>${portsCell([...new Set([...(s.ports_now || []), ...(s.expected_ports || [])])])}</td>
+      <td class="opt">${src}</td>
+      <td class="opt2">${hl(s.reason)}</td>
+      <td class="actions">${action}</td></tr>`;
+  }).join("") || `<tr><td colspan="6" class="empty">No matches</td></tr>`);
+  $("gone-card").style.display = gone.length ? "" : "none";
+  setHTML($("gone-head"), head("gone", [["Port", "port"], ["Project / folder", "project"], ["Command", "", "opt"], ["Last seen", "last"], ["", ""]]));
+  const now = state.generated_at;
+  setHTML($("gone"), gone.map((g) => `<tr>
+      <td><span class="port">${hl(String(g.port))}</span>${g.port_taken_by ? `<div class="origin">port in use: ${esc(g.port_taken_by)}</div>` : ""}</td>
+      <td class="name">${g.project ? `<b>${hl(base(g.project))}</b><div class="origin path">${hl(tilde(g.project))}</div>` : `<span class="path">${hl(tilde(g.cwd))}</span>`}${g.title ? `<div class="desc">${hl(g.title)}</div>` : ""}</td>
+      <td class="opt"><div class="cmd" title="${esc(g.command)}">${hl(g.command)}</div></td>
+      <td class="nowrap">${ago(now - g.last_seen)} ago</td>
+      <td class="actions"><button data-copy="${esc(`cd ${g.cwd || g.project || "~"} && ${g.command}`)}" title="Copy command">Command</button>
+        <button data-forget="${esc(g.key)}" title="Remove from list">Forget</button></td></tr>`).join(""));
+  return [rows.length, state.services.length + state.gone.length];
+}
+
+// ---------------------------------------------------------------- tab: schedule
+function renderSchedule() {
+  const list = sortBy(rowsFor("schedule"), "scheduled", {
+    status: (s) => s.running ? 0 : s.last_exit ? 1 : s.disabled ? 3 : 2, name: (s) => s.label.toLowerCase(),
+    schedule: (s) => s.schedule, project: (s) => s.project ? base(s.project).toLowerCase() : null,
+  });
+  setHTML($("scheduled-head"), head("scheduled", [["Job", "name"], ["When", "schedule"], ["Now", "status"], ["Last run", ""], ["Project", "project", "opt"], ["", ""]]));
+  setHTML($("scheduled"), list.map((s) => {
+    const now = s.running ? `<span class="dot up"></span>running` : (s.disabled ? "disabled" : (s.loaded ? "waiting" : `<span class="status-text down">not loaded</span>`));
+    const last = s.last_exit ? `<span class="status-text warn">${esc(s.last_exit)}</span>` : (s.loaded ? "ok" : "—");
+    const btn = s.action === "start" && !s.running ? `<button data-start="${esc(s.label)}" title="launchctl kickstart">Run now</button>` : "";
+    return `<tr class="${s.disabled ? "off" : ""} ${s.pid ? "click" : ""}" ${s.pid ? `data-pid="${s.pid}"` : ""}><td class="mono">${hl(s.label)}</td><td>${hl(s.schedule)}</td>
+      <td class="nowrap">${now}</td><td>${last}</td><td class="opt">${s.project ? `<b>${hl(base(s.project))}</b><div class="origin path">${hl(tilde(s.project))}</div>` : ""}</td><td class="actions">${btn}</td></tr>`;
+  }).join("") || `<tr><td colspan="6" class="empty">No matches</td></tr>`);
+  $("hidden-wrap").style.display = state.hidden.length ? "" : "none";
+  $("hidden-summary").textContent = `Hidden via ignore_labels in config.json: ${state.hidden.length}`;
+  $("hidden").textContent = state.hidden.join("  ·  ");
+  return [list.length, state.scheduled.length];
+}
+
+// ---------------------------------------------------------------- tab: resources
+function tile(label, big, body) { return `<div class="tile"><div class="label">${label}</div><div class="big">${big}</div>${body}</div>`; }
+function bar(parts, total) { return `<div class="bar">${parts.map(([v, cls, t]) => `<span class="${cls}" style="width:${Math.max(0, v / total * 100).toFixed(2)}%" title="${esc(t)}"></span>`).join("")}</div>`; }
+function renderResources() {
+  const m = mon();
+  if (!m) return;
+  const vm = m.vm, sw = vm.swap, cpu = m.cpu.user + m.cpu.sys;
+  const swPct = sw.total ? sw.used / sw.total * 100 : 0;
+  const PRESS = {normal: "normal", warn: "elevated", critical: "critical"};
+  const pressCls = {normal: "", warn: "status-text warn", critical: "status-text down"}[vm.pressure];
+  const diskUsed = m.disk.total - m.disk.free, diskPct = m.disk.total ? diskUsed / m.disk.total * 100 : 0;
+  setHTML($("tiles"), [
+    tile("Memory", `${gb(vm.used)} <small>of ${gb(vm.total, 0)} GB</small>`,
+      bar([[vm.app, "c-app", "apps"], [vm.wired, "c-wired", "wired"], [vm.compressed, "c-compr", "compressed"], [vm.cached, "c-cached", "file cache"]], vm.total)
+      + `<div class="legend"><span><i class="c-app"></i>apps ${gb(vm.app)}</span><span><i class="c-wired"></i>wired ${gb(vm.wired)}</span><span><i class="c-compr"></i>compressed ${gb(vm.compressed)}</span><span><i class="c-cached"></i>cache ${gb(vm.cached)}</span></div>`
+      + `<div class="legend">pressure: <span class="${pressCls}">${PRESS[vm.pressure]}</span></div>`),
+    tile("Swap", `${gb(sw.used)} <small>of ${gb(sw.total, 0)} GB</small>`,
+      bar([[sw.used, lvl(swPct, 50, 80), "used"]], sw.total || 1)
+      + `<div class="legend">${sw.total ? Math.round(swPct) + "% used" : "swap not in use"}</div>`),
+    tile("CPU", `${Math.round(cpu)}<small>%</small>`,
+      bar([[cpu, lvl(cpu, 60, 90), "load"]], 100)
+      + `<div class="legend">user ${m.cpu.user.toFixed(0)}% · sys ${m.cpu.sys.toFixed(0)}% · ${vm.ncpu} cores</div>`
+      + `<div class="legend">load ${vm.load.map((x) => x.toFixed(1)).join(" / ")} (1 / 5 / 15 min)</div>`),
+    tile("Disk", `${gb(m.disk.free, 0)} <small>GB free</small>`,
+      bar([[diskUsed, lvl(diskPct, 85, 95), "used"]], m.disk.total || 1)
+      + `<div class="legend">of ${gb(m.disk.total, 0)} GB · ${Math.round(diskPct)}% used</div>`),
+  ].join(""));
+  const mc = $("monitor-count");
+  if (mc) mc.textContent = m.live && active() ? `live every ${m.live_seconds} s; history every ${m.sample_seconds} s` : "sampled in the background every " + m.sample_seconds + " s";
+  renderChart();
+}
+function renderChart() {
+  const m = mon(), svg = $("chart");
+  if (!m || tab !== "resources") return;
+  for (const b of document.querySelectorAll("#range button")) b.classList.toggle("on", Number(b.dataset.range) === range);
+  const now = m.sampled_at, from = now - range * 3600;
+  const pts = (m.history || []).filter((p) => p[0] >= from);
+  const W = Math.max(300, svg.clientWidth || 800), H = 220, L = 34, R = 34, T = 8, B = 18;
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  const maxMem = Math.max(m.vm.total, ...pts.map((p) => p[1] + p[2])) / GB;
+  const x = (t) => L + (t - from) / (now - from) * (W - L - R);
+  const y = (v) => T + (1 - v / maxMem) * (H - T - B);
+  const yc = (v) => T + (1 - v / 100) * (H - T - B);
+  const path = (sel) => pts.map((p, i) => `${i ? "L" : "M"}${x(p[0]).toFixed(1)},${sel(p).toFixed(1)}`).join("");
+  const area = (sel) => pts.length ? path(sel) + `L${x(pts[pts.length - 1][0]).toFixed(1)},${H - B}L${x(pts[0][0]).toFixed(1)},${H - B}Z` : "";
+  let g = "";
+  const step = maxMem > 32 ? 16 : 8;
+  for (let v = 0; v <= maxMem; v += step)
+    g += `<line class="grid" x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}"/><text x="${L - 4}" y="${y(v) + 3}" text-anchor="end">${v}</text>`;
+  g += `<text x="${W - R + 4}" y="${yc(100) + 8}">100%</text><text x="${W - R + 4}" y="${yc(0)}">0%</text>`;
+  const ticks = range === 1 ? 15 * 60 : 3600;
+  for (let t = Math.ceil(from / ticks) * ticks; t <= now; t += ticks)
+    g += `<text x="${x(t)}" y="${H - 4}" text-anchor="middle">${new Date(t * 1000).toLocaleTimeString(undefined, {hour: "2-digit", minute: "2-digit"})}</text>`;
+  g += `<line x1="${L}" x2="${W - R}" y1="${y(m.vm.total / GB)}" y2="${y(m.vm.total / GB)}" stroke="var(--muted)" stroke-dasharray="3 3"/>`;
+  if (pts.length > 1) {
+    g += `<path d="${area((p) => y((p[1] + p[2]) / GB))}" fill="#d83a3a" opacity=".22"/>`;
+    g += `<path d="${area((p) => y(p[1] / GB))}" fill="#4b7bec" opacity=".28"/>`;
+    g += `<path d="${path((p) => y(p[1] / GB))}" fill="none" stroke="#4b7bec" stroke-width="1.5"/>`;
+    g += `<path d="${path((p) => y((p[1] + p[2]) / GB))}" fill="none" stroke="#d83a3a" stroke-width="1.2"/>`;
+    g += `<path d="${path((p) => yc(p[3]))}" fill="none" stroke="#1f9d63" stroke-width="1" opacity=".8"/>`;
+  } else {
+    g += `<text x="${W / 2}" y="${H / 2}" text-anchor="middle">Collecting history — the chart will appear in a minute</text>`;
+  }
+  setHTML(svg, g);
+  setHTML($("chart-legend"), `<span class="legend" style="margin:0"><span><i class="c-app"></i>memory used, GB</span><span><i class="c-swap"></i>+ swap</span><span><i class="c-cpu"></i>CPU, % (right axis)</span><span>dashed line: total RAM</span></span>`);
+}
+
+// ---------------------------------------------------------------- render all
+function render() {
+  if (!state) return;
+  renderMeters(); renderAlerts(); renderTabs(); renderLive();
+  let counts = [0, 0];
+  if (tab === "procs") counts = renderProcs();
+  else if (tab === "ports") counts = renderPorts();
+  else if (tab === "projects") counts = renderProjects();
+  else if (tab === "schedule") counts = renderSchedule();
+  renderToolbar(counts[0], counts[1]);
+  if (tab === "resources") renderResources();
+  if (drawer) renderDrawer();
+  measureHeader();
+}
+function measureHeader() {
+  const h = $("top").offsetHeight;
+  if (h && h !== measureHeader._h) { measureHeader._h = h; document.documentElement.style.setProperty("--hh", h + "px"); }
+}
+
+// ---------------------------------------------------------------- drawer (process card)
+function openProc(pid) {
+  drawer = {type: "proc", pid, data: null, at: 0};
+  showDrawer(); renderDrawer(); loadDrawer(); render();
+}
+function openGroup(key) {
+  const g = mon() && mon().groups.find((x) => x.key === key);
+  if (!g) return;
+  const kids = childrenOf(key);
+  if (g.count === 1 && kids[0]) return openProc(kids[0].pid);
+  drawer = {type: "group", key};
+  showDrawer(); render();
+}
+function showDrawer() { $("drawer").classList.add("show"); $("drawer").setAttribute("aria-hidden", "false"); document.body.classList.add("drawer"); }
+function closeDrawer() {
+  drawer = null; $("drawer").classList.remove("show"); $("drawer").setAttribute("aria-hidden", "true"); document.body.classList.remove("drawer");
+  render();
+}
+async function loadDrawer() {
+  if (!drawer || drawer.type !== "proc") return;
+  const pid = drawer.pid;
+  try {
+    const data = await getJSON("/api/proc?pid=" + pid);
+    if (drawer && drawer.pid === pid) { drawer.data = data; drawer.at = Date.now(); drawer.error = null; renderDrawer(); }
+  } catch (e) {
+    if (drawer && drawer.pid === pid) { drawer.error = e.message; renderDrawer(); }
+  }
+}
+function spark(hist, now) {
+  if (!hist || hist.length < 2) return `<div class="sub">the memory chart will appear after a couple of minutes of observation</div>`;
+  const W = 440, H = 46, ts = hist.map((h) => h[0]), vs = hist.map((h) => h[1]);
+  const t0 = Math.min(...ts), t1 = Math.max(...ts), lo = Math.min(...vs) * .95, hi = Math.max(...vs) * 1.02;
+  const x = (t) => (t - t0) / Math.max(1, t1 - t0) * W, y = (v) => H - 2 - (v - lo) / Math.max(1, hi - lo) * (H - 4);
+  const d = hist.map((h, i) => `${i ? "L" : "M"}${x(h[0]).toFixed(1)},${y(h[1]).toFixed(1)}`).join("");
+  return `<svg class="spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none"><path d="${d}L${W},${H}L0,${H}Z" fill="#4b7bec" opacity=".15"/><path d="${d}" fill="none" stroke="#4b7bec" stroke-width="1.5"/></svg>
+    <div class="sub">${size(vs[0])} → ${size(vs[vs.length - 1])} over ${ago(t1 - t0)}</div>`;
+}
+function revealBtn(path) { return path ? `<button class="linkbtn" data-reveal="${esc(path)}" title="Reveal in Finder">Finder</button>` : ""; }
+function fileLine(label, f, extra = "") {
+  if (!f) return "";
+  return `<div>${label}</div><div><span class="path">${esc(tilde(f.path))}</span>${revealBtn(f.path)}${extra}
+    <div class="sub">created ${when(f.created)}${f.modified && Math.abs(f.modified - (f.created || 0)) > 60 ? `<br>modified ${when(f.modified)}` : ""}</div></div>`;
+}
+function renderDrawer() {
+  if (!drawer) return;
+  if (drawer.type === "group") return renderGroupDrawer();
+  const live = procOf(drawer.pid), d = drawer.data;
+  const name = (d && d.name) || (live && live.name) || "?";
+  $("d-title").innerHTML = esc(name) + ` <span class="sub">pid ${drawer.pid}</span>`;
+  $("d-subtitle").textContent = d ? tilde(d.exe) : "";
+  if (drawer.error) { setHTML($("d-body"), `<div class="d-sec"><div class="status-text down">${esc(drawer.error)}</div><div class="sub">The process may have exited.</div></div>`); setHTML($("d-actions"), ""); return; }
+  if (!d) {
+    // Show what the table already knows while the full card loads.
+    setHTML($("d-body"), live ? `<div class="d-sec"><h4>What it is</h4><div class="d-what">${esc(live.desc)}</div><div class="sub">${esc(live.origin.text)}</div></div>
+      <div class="d-sec"><h4>Now</h4><div class="stats"><div><b>${size(live.mem)}</b><span>memory</span></div><div><b>${live.cpu.toFixed(1)}%</b><span>CPU</span></div>
+      <div><b>${live.growth != null ? size(live.growth) : "—"}</b><span>growth/h</span></div><div><b>${ago(live.uptime_s)}</b><span>uptime</span></div></div></div>
+      <div class="d-sec sub">Collecting details: origin, when it was made…</div>` : `<div class="d-sec sub">Collecting details…</div>`);
+    setHTML($("d-actions"), live ? killBtn(live, "Kill process") : "");
+    return;
+  }
+  const mem = live ? live.mem : d.mem, cpu = live ? live.cpu : d.cpu, growth = live ? live.growth : d.growth;
+  const now = Date.now() / 1000;
+  const sec = [];
+  sec.push(`<div class="d-sec"><h4>What it is</h4><div class="d-what">${esc(d.desc.short)}</div><div class="d-text">${esc(d.desc.text)}</div>
+    <div class="hint ${d.desc.hint}">${esc(d.desc.hint_text)}</div></div>`);
+  sec.push(`<div class="d-sec"><h4>Now</h4><div class="stats">
+    <div><b>${size(mem)}</b><span>memory</span></div><div><b>${cpu != null ? cpu.toFixed(1) + "%" : "—"}</b><span>CPU</span></div>
+    <div><b>${growth != null ? (growth >= 0 ? "+" : "−") + size(Math.abs(growth)) : "—"}</b><span>growth/h</span></div>
+    <div><b>${ago(d.uptime_s)}</b><span>uptime</span></div></div>${spark(d.history, now)}</div>`);
+  // where from
+  const chain = d.chain.map((c, i) => `<div class="step ${c.pid === d.pid ? "me" : ""}"><span class="arrow">${i ? "↳" : ""}</span>
+      <span>${c.pid === d.pid ? esc(c.name) : `<a data-open-pid="${c.pid}">${esc(c.name)}</a>`} <span class="sub">pid ${c.pid}${c.user !== d.user ? " · " + esc(c.user) : ""}</span>
+      ${c.pid !== 1 ? `<div class="cmd" title="${esc(c.command)}" style="max-width:380px">${esc(c.command)}</div>` : ""}</span></div>`).join("");
+  let origin = esc(d.origin.text);
+  if (d.plist) origin += `<div class="sub">${d.plist.keepalive ? "KeepAlive: restarts on its own if it dies" : d.plist.run_at_load ? "RunAtLoad: starts at login" : esc(d.plist.schedule || "on demand")}</div>`;
+  sec.push(`<div class="d-sec"><h4>Origin</h4><div class="kv">
+    <div>Started by</div><div>${origin}</div>
+    <div>Started</div><div>${when(d.started_at)}</div>
+    ${d.project ? `<div>Project</div><div><b>${esc(base(d.project))}</b> <span class="path">${esc(tilde(d.project))}</span>${revealBtn(d.project)}</div>` : ""}
+    ${d.cwd && d.cwd !== "/" && d.cwd !== d.project ? `<div>Working dir</div><div><span class="path">${esc(tilde(d.cwd))}</span>${revealBtn(d.cwd)}</div>` : ""}
+    ${d.ports.length ? `<div>Ports</div><div>${portsCell([...new Set(d.ports.map((p) => p.port))], 99)} <span class="sub">${esc([...new Set(d.ports.map((p) => p.addr))].join(", "))}</span></div>` : ""}
+    <div>Chain</div><div class="chain">${chain}</div>
+    ${d.children.length ? `<div>Children</div><div>${d.children.map((c) => `<a data-open-pid="${c.pid}" style="cursor:pointer">${esc(c.name)}</a> <span class="sub">${c.pid}</span>`).join(", ")}</div>` : ""}
+  </div></div>`);
+  // when made
+  const made = [];
+  if (d.git) made.push(`<div>Git project</div><div>first commit ${when(d.git.first_commit)}<br>last commit ${when(d.git.last_commit)}
+      <div class="sub">“${esc(d.git.last_subject)}”${d.git.commits ? ` · ${plural(d.git.commits, "commit", "commits")}` : ""}</div></div>`);
+  else if (d.project_dir) made.push(fileLine("Project folder", d.project_dir));
+  if (d.plist) made.push(fileLine("launchd agent", d.plist));
+  if (d.script) made.push(fileLine("Script", d.script));
+  if (d.app) made.push(`<div>${["Python", "Electron", "plugin-container"].includes(d.app.name) ? "Program" : "App"}</div><div><b>${esc(d.app.name)}</b>${d.app.version ? ` <span class="badge">${esc(d.app.version)}</span>` : ""}${revealBtn(d.app.path)}
+      <div class="sub path">${esc(tilde(d.app.path))}</div><div class="sub">installed/updated ${when(d.app.modified)}</div></div>`);
+  if (made.length) sec.push(`<div class="d-sec"><h4>When it was made</h4><div class="kv">${made.join("")}</div></div>`);
+  if (d.plist && d.plist.logs.length) sec.push(`<div class="d-sec"><h4>Logs</h4>${d.plist.logs.map((f) => `<div><span class="path">${esc(tilde(f.path))}</span>${revealBtn(f.path)} <span class="sub">${size(f.size)} · ${when(f.modified)}</span></div>`).join("")}</div>`);
+  sec.push(`<div class="d-sec"><h4>Command <button class="linkbtn" data-copy="${esc(d.command)}">copy</button></h4><div class="cmdbox">${esc(d.command)}</div>
+    <div class="sub" style="margin-top:6px">user ${esc(d.user)} · parent pid ${d.ppid}</div></div>`);
+  setHTML($("d-body"), sec.join(""));
+  const acts = [];
+  if (d.origin.kind === "launchd" && d.origin.label) acts.push(jobBtns(d.origin.label));
+  if (d.own) acts.push(killBtn({pid: d.pid, command: d.command, name: d.name, own: true}, "Kill process"));
+  setHTML($("d-actions"), acts.join(" ") || `<span class="sub">${d.system ? "System process — can't be managed from here." : "No actions."}</span>`);
+}
+function renderGroupDrawer() {
+  const g = mon() && mon().groups.find((x) => x.key === drawer.key);
+  if (!g) { setHTML($("d-body"), `<div class="d-sec sub">Group gone — its processes have exited.</div>`); setHTML($("d-actions"), ""); return; }
+  const kids = childrenOf(g.key);
+  $("d-title").textContent = g.name;
+  $("d-subtitle").textContent = g.kind === "project" ? tilde(g.project) : g.origin;
+  const max = Math.max(1, ...kids.map((p) => p.mem));
+  setHTML($("d-body"), `<div class="d-sec"><h4>What it is</h4><div class="d-text">${esc(g.desc)}</div>
+      ${g.hint ? `<div class="hint ${g.hint}">${esc({system: "macOS system processes. Leave them alone.", app: "App processes. To free memory, close tabs or windows, or quit the app.", server: "Your processes. Kill them one by one or restart the service.", safe: "Safe to quit."}[g.hint])}</div>` : ""}</div>
+    <div class="d-sec"><h4>Now</h4><div class="stats">
+      <div><b>${size(g.mem)}</b><span>memory</span></div><div><b>${g.cpu.toFixed(1)}%</b><span>CPU</span></div>
+      <div><b>${g.growth != null ? (g.growth >= 0 ? "+" : "−") + size(Math.abs(g.growth)) : "—"}</b><span>growth/h</span></div>
+      <div><b>${g.count}</b><span>processes</span></div></div>
+      ${g.ports.length ? `<div style="margin-top:8px">Ports: ${portsCell(g.ports, 99)}</div>` : ""}
+      ${g.labels.length ? `<div class="sub" style="margin-top:6px">launchd: ${esc(g.labels.join(", "))}</div>` : ""}</div>
+    <div class="d-sec"><h4>Processes — click for details</h4><table>${kids.map((p) => `<tr class="click ${selCls("proc", p.pid)}" data-pid="${p.pid}">
+      <td class="name" style="padding-left:0">${esc(p.name)} <span class="sub">${p.pid}</span><div class="desc">${esc(p.desc)}</div></td>
+      <td class="num">${size(p.mem)}<div class="membar"><span style="width:${(p.mem / max * 100).toFixed(1)}%"></span></div></td>
+      <td class="num">${p.cpu.toFixed(1)}%</td></tr>`).join("")}</table>
+      ${g.count > kids.length ? `<div class="sub">…and ${g.count - kids.length} more small ones</div>` : ""}</div>`);
+  setHTML($("d-actions"), g.labels.length === 1 ? jobBtns(g.labels[0]) : "");
+}
+
+// ---------------------------------------------------------------- loading
+function showError(e) {
+  $("error").textContent = "Failed to load data: " + (e.name === "AbortError" ? "server did not respond within 8 s" : e.message);
+  $("error").style.display = "block";
+}
+async function load() {
+  if (busy) return;
+  busy = true; $("refresh").disabled = true;
+  try {
+    state = await getJSON("/api/state?flat=1");
+    fullAt = Date.now();
+    $("host-port").textContent = ":" + state.dashboard_port;
+    render();
+    $("error").style.display = "none";
+  } catch (e) { showError(e); } finally {
+    busy = false; $("refresh").disabled = false;
+    schedule();
+  }
+}
+async function loadLive() {
+  if (liveBusy || busy || !state) return;
+  liveBusy = true;
+  try {
+    const data = await getJSON("/api/live?flat=1");
+    const old = state.monitor || {history: []}, m = data.monitor;
+    const hist = old.history || [];
+    if (m.point && (!hist.length || m.point[0] > hist[hist.length - 1][0])) hist.push(m.point);
+    state.monitor = {...old, ...m, history: hist};
+    state.generated_at = data.generated_at;
+    render();
+    if (drawer && drawer.type === "proc" && Date.now() - drawer.at > 10000) loadDrawer();
+    $("error").style.display = "none";
+  } catch (e) { showError(e); } finally {
+    liveBusy = false;
+    schedule();
+  }
+}
+function tick() {
+  if (!$("auto").checked || !active()) return paused();
+  const fullEvery = ((state && state.refresh_seconds) || 15) * 1000;
+  if (!state || Date.now() - fullAt >= fullEvery) load(); else loadLive();
+}
+function schedule() {
+  clearTimeout(timer);
+  if (!$("auto").checked || !active()) return paused();
+  timer = setTimeout(tick, ((mon() && mon().live_seconds) || 2) * 1000);
+}
+function paused() { clearTimeout(timer); renderLive(); }
+function wake() { if ($("auto").checked && active()) tick(); else paused(); }
+
+// ---------------------------------------------------------------- actions
+async function post(path, body) {
+  const res = await fetch(path, {method: "POST", headers: {"Content-Type": "application/json", "X-Dashboard": "1"}, body: JSON.stringify(body)});
+  let data = {};
+  try { data = await res.json(); } catch (e) {}
+  return {ok: res.ok, data};
+}
+async function act(b, path, body, busyText, confirmText) {
+  if (confirmText && !confirm(confirmText)) return;
+  b.disabled = true; b.textContent = busyText;
+  const {ok, data} = await post(path, body);
+  toast((ok ? "" : "Error: ") + (data.message || data.error || "") + (data.command ? "\n" + data.command : ""), ok ? 5000 : 9000);
+  setTimeout(() => { load(); if (drawer) loadDrawer(); }, ok ? 2500 : 300);
+}
+function setTab(id) {
+  if (!TABS.some((t) => t.id === id)) return;
+  tab = id; saveUI();
+  history.replaceState(null, "", "#" + id);
+  window.scrollTo({top: 0});
+  render();
+}
+function jumpToGroup(key) {
+  filters.procs.view = "groups"; filters.procs.who = "all"; setQuery(""); $("q").value = "";
+  setTab("procs");
+  openGroup(key);
+  const row = document.getElementById("g-" + key);
+  if (row) { row.scrollIntoView({block: "center", behavior: "smooth"}); row.classList.add("flash"); setTimeout(() => row.classList.remove("flash"), 1700); }
+}
+
+document.addEventListener("click", async (ev) => {
+  const t = ev.target;
+  if (!t.closest("#alerts-pop") && !t.closest("#alerts-btn")) $("alerts-pop").classList.remove("show");
+  if (t.closest("#alerts-btn")) {
+    const r = t.closest("#alerts-btn").getBoundingClientRect(), pop = $("alerts-pop");
+    pop.style.top = (r.bottom + 6 + window.scrollY) + "px"; pop.style.left = Math.min(r.left, window.innerWidth - 320) + "px";
+    pop.classList.toggle("show"); return;
+  }
+  const jump = t.closest("[data-jumptab]");
+  if (jump) { $("alerts-pop").classList.remove("show"); if (jump.dataset.jump) jumpToGroup(jump.dataset.jump); else setTab(jump.dataset.jumptab); return; }
+  if (t.closest("#meters")) return setTab("resources");
+  const thd = t.closest("th[data-sort]");
+  if (thd) {
+    const s = sorts[thd.dataset.table], k = thd.dataset.sort;
+    if (s.key === k) s.dir = -s.dir; else { s.key = k; s.dir = ["name", "port", "status", "group", "project", "origin", "source", "schedule", "pid"].includes(k) ? 1 : -1; }
+    saveUI(); render(); return;
+  }
+  const caret = t.closest("[data-caret]");
+  if (caret) { const k = caret.dataset.caret; openGroups.has(k) ? openGroups.delete(k) : openGroups.add(k); render(); return; }
+  if (t.closest("[data-close]")) return closeDrawer();
+  const op = t.closest("[data-open-pid]");
+  if (op) return openProc(Number(op.dataset.openPid));
+  const b = t.closest("button");
+  if (b) {
+    if (b.dataset.tab) return setTab(b.dataset.tab);
+    if (b.dataset.filter) { const [g, k] = b.dataset.filter.split("."); filters[g][k] = b.dataset.value; saveUI(); return render(); }
+    if (b.dataset.toggle) { const [g, k] = b.dataset.toggle.split("."); filters[g][k] = !filters[g][k]; saveUI(); return render(); }
+    if (b.hasAttribute("data-reset")) { filters[tab] = {...FILTER_DEFAULTS[tab]}; setQuery(""); $("q").value = ""; saveUI(); return render(); }
+    if (b.dataset.range) { range = Number(b.dataset.range); store("range", String(range)); return renderChart(); }
+    if (b.dataset.restart) return act(b, "/api/restart", {label: b.dataset.restart}, "Restarting…",
+      `Restart ${b.dataset.restart}?\n(launchctl kickstart -k: the process gets SIGTERM and starts again)`);
+    if (b.dataset.stop) return act(b, "/api/stop", {label: b.dataset.stop}, "Stopping…",
+      `Stop ${b.dataset.stop}?\n(launchctl bootout: it won't start again until you press Start or log in next time)`);
+    if (b.dataset.kill) {
+      const force = ev.shiftKey;
+      return act(b, "/api/kill", {pid: Number(b.dataset.kill), command: b.dataset.cmd, force}, "Killing…",
+        `${force ? "SIGKILL (force)" : "Kill (SIGTERM)"}: ${b.dataset.name}, pid ${b.dataset.kill}?\n\n${(b.dataset.show || "").slice(0, 300)}`);
+    }
+    if (b.dataset.start) {
+      b.disabled = true; b.textContent = "Starting…";
+      const {ok, data} = await post("/api/start", {label: b.dataset.start});
+      toast((ok ? "Started: " : "Error: ") + (data.message || "") + (data.command ? "\n" + data.command : ""), ok ? 4000 : 9000);
+      return setTimeout(load, 2500);
+    }
+    if (b.dataset.forget) { await post("/api/forget", {key: b.dataset.forget}); return load(); }
+    if (b.dataset.reveal) { const {ok, data} = await post("/api/reveal", {path: b.dataset.reveal}); return toast((ok ? "" : "Error: ") + (data.message || ""), ok ? 2500 : 6000); }
+    if (b.dataset.copy) {
+      try { await navigator.clipboard.writeText(b.dataset.copy); toast("Copied"); } catch (e) { toast(b.dataset.copy, 10000); }
+      return;
+    }
+    return;
+  }
+  if (t.closest("a")) return;
+  const row = t.closest("tr.click");
+  if (row) {
+    if (row.dataset.pid) return openProc(Number(row.dataset.pid));
+    if (row.dataset.group) return openGroup(row.dataset.group);
+  }
+});
+
+$("q").addEventListener("input", () => { setQuery($("q").value.trim()); render(); });
+document.addEventListener("keydown", (ev) => {
+  const typing = ev.target.matches("input, textarea, select");
+  if (ev.key === "Escape") {
+    if ($("alerts-pop").classList.contains("show")) return $("alerts-pop").classList.remove("show");
+    if (typing && $("q").value) { $("q").value = ""; setQuery(""); return render(); }
+    if (typing) return ev.target.blur();
+    if (drawer) return closeDrawer();
+    if (query) { $("q").value = ""; setQuery(""); return render(); }
+    return;
+  }
+  if (typing || ev.metaKey || ev.ctrlKey || ev.altKey) return;
+  if (ev.key === "/") { ev.preventDefault(); $("q").focus(); $("q").select(); }
+  else if (/^[1-5]$/.test(ev.key)) setTab(TABS[Number(ev.key) - 1].id);
+  else if (ev.key === "r") load();
+});
+$("refresh").addEventListener("click", load);
+$("auto").addEventListener("change", () => { store("auto", $("auto").checked ? "1" : "0"); wake(); });
+document.addEventListener("visibilitychange", wake);
+window.addEventListener("focus", wake);
+window.addEventListener("blur", paused);
+window.addEventListener("hashchange", () => { const h = location.hash.slice(1); if (h !== tab) setTab(h); });
+document.addEventListener("pointerdown", () => { pointerDown = true; });
+document.addEventListener("pointercancel", () => { pointerDown = false; });
+document.addEventListener("pointerup", () => { pointerDown = false; if (state && tab === "procs") setTimeout(render, 0); });
+window.addEventListener("resize", () => { measureHeader(); renderChart(); });
+if (store("auto") === "0") $("auto").checked = false;
+renderTabs();
+$("toolbar").innerHTML = `<span class="shown">Collecting data: ports, processes, services…</span>`;
+load();
+</script>
+</body>
+</html>
